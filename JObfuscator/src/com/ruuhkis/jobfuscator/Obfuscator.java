@@ -37,7 +37,7 @@ public class Obfuscator {
 				
 				String className = reader.getClassName();
 				
-				context.getClasses().add(new ObfuscatedClass(cn));
+				context.getClasses().add(new ObfuscatedClass(context, cn));
 				
 				System.out.println(className);
 				
@@ -47,12 +47,20 @@ public class Obfuscator {
 		
 		obfuscateClasses();
 		
+		updateSuperMethods();
+		
 		updateClasses();
 	}
 	
+	private void updateSuperMethods() {
+		for(ObfuscatedClass clazz: context.getClasses()) {
+			clazz.updateSuperMethods();
+		}
+	}
+
 	private void updateClasses() {
 		for(ObfuscatedClass clazz: context.getClasses()) {
-			clazz.updateClass(context);
+			clazz.updateClass();
 		}
 	}
 

@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Type;
@@ -23,10 +24,13 @@ public class ObfuscatedClass {
 
 	private Map<String, String> fields;
 	private Map<String, String> methods;
+
+	private ObfuscationContext context;
 	
-	public ObfuscatedClass(ClassNode node) {
+	public ObfuscatedClass(ObfuscationContext context, ClassNode node) {
 		super();
 		this.node = node;
+		this.context = context;
 		this.fields = new HashMap<String, String>();
 		this.methods = new HashMap<String, String>();
 	}
@@ -50,15 +54,20 @@ public class ObfuscatedClass {
 		}
 		counter = 0;
 		for(MethodNode method: (List<MethodNode>)node.methods) {
-			if(isSuperMethod(method, node)) {
+			String methodName = isSuperMethod(method, node);
+			if(methodName != null) { //exists in superclass
+//				System.err.println("Name in superclass is " + methodName);
+				
 				continue;
 			}
-			System.out.println(node.superName + " " + method.desc + " " + method.name + " " + (method.invisibleAnnotations != null ? method.invisibleAnnotations.size() : "null") + " " + (method.visibleAnnotations == null ? "null" : method.visibleAnnotations.size()));
+//			System.out.println(node.superName + " " + method.desc + " " + method.name + " " + (method.invisibleAnnotations != null ? method.invisibleAnnotations.size() : "null") + " " + (method.visibleAnnotations == null ? "null" : method.visibleAnnotations.size()));
 			
 			
 			String originalName = method.name;
 			
 			String newName = ObfuscationContext.getNewName(counter);
+			
+//			System.err.println("Renaming " + originalName + " to " + newName);
 
 			methods.put(originalName, newName);
 			
@@ -66,42 +75,82 @@ public class ObfuscatedClass {
 			
 			counter++;
 		}
+		
+	}
+	
+	public void updateSuperMethods() {
+
+		for(MethodNode method: (List<MethodNode>)node.methods) {
+			String methodName = isSuperMethod(method, node);
+			if(methodName != null) { //exists in superclass
+				System.err.println("Updating " + method.name + " to " + methodName);
+				methods.put(method.name, methodName);
+				method.name = methodName;
+				continue;
+			} else {
+//				System.err.println(method.name + " doesn't exist in superclass :e");
+			}
+		}
 	}
 
-	private boolean isSuperMethod(MethodNode method, ClassNode node) {
+	private String isSuperMethod(MethodNode method, ClassNode node) {
 		if(node.superName == null)
-			return false;
-		boolean exists = false;
+			return null;
+		String result = null;
 		ClassNode cn = null;
-		try {
-			ClassReader cr = new ClassReader(node.superName);
-			cn = new ClassNode();
-			cr.accept(cn, 0);
-		} catch (IOException e) {
-			e.printStackTrace();
+		ObfuscatedClass clazz = context.getClass(node.superName);
+		if(clazz == null) {
+			try {
+//				System.out.println(node.superName);
+				ClassReader cr = new ClassReader(node.superName);
+				cn = new ClassNode();
+				cr.accept(cn, 0);
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		} else {
+			cn = clazz.getNode();
 		}
 		for(MethodNode superMethod: (List<MethodNode>)cn.methods) {
 			boolean sameSignature = (superMethod.signature == null && method.signature == null) || superMethod.signature.equals(method.signature);
 			if(superMethod.name.equals(method.name) && sameSignature) {
-				System.out.println(superMethod.name + " exists in parent class(" + cn.name + ")");
-				exists = true;
+//				System.out.println(superMethod.name + " exists in parent class(" + cn.name + ")");
+				if(clazz != null) {
+					String newMethodName = clazz.getMethods().get(method.name);
+					if(newMethodName != null) {
+						result = newMethodName;
+						break;
+					}
+				}
+				result = method.name;
 				break;
 			}
 		}
-		return exists || isSuperMethod(method, cn);
+		
+		if(clazz != null) {
+			for(Entry<String, String> entry: clazz.getMethods().entrySet()) {
+				if(method.name.equals(entry.getKey())) {
+					return entry.getValue();
+				}
+			}
+		}
+		if(result != null) {
+			return result;
+		}
+		return isSuperMethod(method, cn);
 	}
 	
-	public void updateClass(ObfuscationContext context) {
+	public void updateClass() {
 		for(FieldNode field: (List<FieldNode>)node.fields) {
 			if(field.desc.startsWith("L")) {
 				Type type = Type.getType(field.desc);
-				System.out.println();
+//				System.out.println();
 				
 				String newName = context.getClassNames().get(type.getInternalName());
 				
 				if(newName != null) {
 					String newDescriptor = "L" + newName + ";";
-					System.out.println("Setting " + field.desc + " to " + newDescriptor);
+//					System.out.println("Setting " + field.desc + " to " + newDescriptor);
 					field.desc = newDescriptor;
 				}
 			}
@@ -126,10 +175,10 @@ public class ObfuscatedClass {
 						
 						if(newName != null) {
 							newName = "L" + newName + ";";
-							System.out.println("Renaming " + fieldIns.desc + " field to use " + newName);
+//							System.out.println("Renaming " + fieldIns.desc + " field to use " + newName);
 							fieldIns.desc = newName;
 						} else {
-							System.out.println(fieldIns.desc + " haven't been renamed.. " + type.getInternalName());
+//							System.out.println(fieldIns.desc + " haven't been renamed.. " + type.getInternalName());
 	
 						}
 					} else {
@@ -138,10 +187,10 @@ public class ObfuscatedClass {
 					String newOwnerName = context.getClassNames().get(fieldIns.owner);
 					
 					if(newOwnerName != null) {
-						System.out.println("Renaming " + fieldIns.owner + " field to use " + newOwnerName);
+//						System.out.println("Renaming " + fieldIns.owner + " field to use " + newOwnerName);
 						fieldIns.owner = newOwnerName;
 					} else {
-						System.out.println("owner " + fieldIns.owner + " haven't changed :e");
+//						System.out.println("owner " + fieldIns.owner + " haven't changed :e");
 					}
 					
 					ObfuscatedClass clazz = context.getClass(fieldIns.owner);
@@ -162,27 +211,30 @@ public class ObfuscatedClass {
 					newOwnerName = context.getClassNames().get(methodIns.owner);
 					
 					if(newOwnerName != null) {
-						System.out.println("Renaming " + methodIns.owner + " method to use " + newOwnerName);
+//						System.out.println("Renaming " + methodIns.owner + " method to use " + newOwnerName);
 						methodIns.owner = newOwnerName;
 					} else {
-						System.out.println("owner " + methodIns.owner + " haven't changed :e");
+//						System.out.println("owner " + methodIns.owner + " haven't changed :e");
 					}
 					
 
 					clazz = context.getClass(methodIns.owner);
-					if(clazz == null) {
-						System.err.println(methodIns.name + " " + methodIns.owner + "@@@@");
-					}
 					
-					if(clazz == null) {
-						System.err.println(methodIns.name + " " + methodIns.owner + "@@@@");
-					} else {
-						String newFieldName = clazz.getMethods().get(methodIns.name);
+					if(clazz != null) {
+						String newMethodName = clazz.getMethods().get(methodIns.name);
+						
+						//TODO somehow magically resolve the changed method name in super class :(
+						
+//						String newSuperName = isSuperMethod(method, node);
+						
 //						System.out.println("Figured that " + newFieldName + " is new field name of " + methodIns.name);
-						if(newFieldName != null) {
-							methodIns.name = newFieldName;
+						if(newMethodName != null) {
+							methodIns.name = newMethodName;
 						} else {
-//							System.out.println(methodIns.name + " doesn't have new name");
+							System.out.println(methodIns.name + " doesn't have new name");
+							for(Entry<String, String> entry: clazz.getMethods().entrySet()) {
+								System.out.println(entry.getKey() + " - " + entry.getValue());
+							}
 						}
 
 					}
@@ -193,7 +245,7 @@ public class ObfuscatedClass {
 					String newDescName = context.getClassNames().get(typeIns.desc);
 					
 					if(newDescName != null) {
-						System.out.println("Renaming typeins " + typeIns.desc + " to use new name " + newDescName);
+//						System.out.println("Renaming typeins " + typeIns.desc + " to use new name " + newDescName);
 						typeIns.desc = newDescName;
 					}
 					
@@ -202,6 +254,7 @@ public class ObfuscatedClass {
 			}
 		}
 	}
+
 
 
 	public Map<String, String> getFields() {

@@ -22,7 +22,7 @@ public class ObfuscationContext {
 	
 	public ObfuscatedClass getClass(String name) {
 		for(ObfuscatedClass clazz: classes) {
-			if(clazz.getNode().name.equals(name))
+			if(clazz.getNode().name.equals(name)/* || clazz.getNode().name.equals(classNames.get(name))*/)
 				return clazz;
 		}
 		return null;
@@ -44,16 +44,23 @@ public class ObfuscationContext {
 			if(lastIndexOf > 0) {
 				packagePrefix = clazz.getNode().name.substring(0, lastIndexOf);
 			}
-			System.out.println(packagePrefix);
+//			System.out.println(packagePrefix);
 			String newClassName = getNewName(counter);
 			String oldName = clazz.getNode().name;
 			
-			System.out.println("Renaming " + oldName + " to " + packagePrefix + newClassName);
+//			System.out.println("Renaming " + oldName + " to " + packagePrefix + newClassName);
 			classNames.put(oldName, packagePrefix + newClassName);
 			
 			clazz.getNode().name = packagePrefix + newClassName;
 			
 			counter++;
+		}
+		for(ObfuscatedClass clazz: classes) {
+			String newSuperName = classNames.get(clazz.getNode().superName);
+			if(newSuperName != null) {
+				clazz.getNode().superName = newSuperName;
+//				System.out.println("Updated " + clazz.getNode().name + "'s supercalss to " + newSuperName);
+			}
 		}
 	}
 	
