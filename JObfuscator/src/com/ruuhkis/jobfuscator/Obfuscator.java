@@ -22,7 +22,7 @@ public class Obfuscator {
 	private ObfuscationContext context;
 
 	public Obfuscator() {
-		this.context = new ObfuscationContext();
+		this.context = new ObfuscationContext("com/ruuhkis/test/TestApplet");
 	}
 	
 	public void obfuscateJar(String jarLocation) throws IOException {
@@ -52,11 +52,12 @@ public class Obfuscator {
 	
 	private void updateClasses() {
 		for(ObfuscatedClass clazz: context.getClasses()) {
-			clazz.updateMethods(context);
+			clazz.updateClass(context);
 		}
 	}
 
 	private void obfuscateClasses() {
+		context.generateClassNames();
 		for(ObfuscatedClass clazz: context.getClasses()) {
 			clazz.generateNewNames();
 		}
