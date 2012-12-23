@@ -54,14 +54,10 @@ public class ObfuscatedClass {
 		}
 		counter = 0;
 		for(MethodNode method: (List<MethodNode>)node.methods) {
-			String methodName = isSuperMethod(method, node);
+			String methodName = context.getSuperMethodName(node.superName, method.name);
 			if(methodName != null) { //exists in superclass
-//				System.err.println("Name in superclass is " + methodName);
-				
 				continue;
 			}
-//			System.out.println(node.superName + " " + method.desc + " " + method.name + " " + (method.invisibleAnnotations != null ? method.invisibleAnnotations.size() : "null") + " " + (method.visibleAnnotations == null ? "null" : method.visibleAnnotations.size()));
-			
 			
 			String originalName = method.name;
 			
@@ -81,7 +77,7 @@ public class ObfuscatedClass {
 	public void updateSuperMethods() {
 
 		for(MethodNode method: (List<MethodNode>)node.methods) {
-			String methodName = isSuperMethod(method, node);
+			String methodName = context.getSuperMethodName(node.superName, method.name);
 			if(methodName != null) { //exists in superclass
 				System.err.println("Updating " + method.name + " to " + methodName);
 				methods.put(method.name, methodName);
@@ -91,53 +87,6 @@ public class ObfuscatedClass {
 //				System.err.println(method.name + " doesn't exist in superclass :e");
 			}
 		}
-	}
-
-	private String isSuperMethod(MethodNode method, ClassNode node) {
-		if(node.superName == null)
-			return null;
-		String result = null;
-		ClassNode cn = null;
-		ObfuscatedClass clazz = context.getClass(node.superName);
-		if(clazz == null) {
-			try {
-//				System.out.println(node.superName);
-				ClassReader cr = new ClassReader(node.superName);
-				cn = new ClassNode();
-				cr.accept(cn, 0);
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-		} else {
-			cn = clazz.getNode();
-		}
-		for(MethodNode superMethod: (List<MethodNode>)cn.methods) {
-			boolean sameSignature = (superMethod.signature == null && method.signature == null) || superMethod.signature.equals(method.signature);
-			if(superMethod.name.equals(method.name) && sameSignature) {
-//				System.out.println(superMethod.name + " exists in parent class(" + cn.name + ")");
-				if(clazz != null) {
-					String newMethodName = clazz.getMethods().get(method.name);
-					if(newMethodName != null) {
-						result = newMethodName;
-						break;
-					}
-				}
-				result = method.name;
-				break;
-			}
-		}
-		
-		if(clazz != null) {
-			for(Entry<String, String> entry: clazz.getMethods().entrySet()) {
-				if(method.name.equals(entry.getKey())) {
-					return entry.getValue();
-				}
-			}
-		}
-		if(result != null) {
-			return result;
-		}
-		return isSuperMethod(method, cn);
 	}
 	
 	public void updateClass() {
@@ -224,6 +173,11 @@ public class ObfuscatedClass {
 						String newMethodName = clazz.getMethods().get(methodIns.name);
 						
 						//TODO somehow magically resolve the changed method name in super class :(
+						String superMethodName = context.getSuperMethodName(clazz.getNode().superName, methodIns.name);
+						
+						if(superMethodName != null) {
+							newMethodName = superMethodName;
+						}
 						
 //						String newSuperName = isSuperMethod(method, node);
 						

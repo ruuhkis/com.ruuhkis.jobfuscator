@@ -4,8 +4,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import org.objectweb.asm.Type;
+import org.objectweb.asm.tree.ClassNode;
 
 public class ObfuscationContext {
 
@@ -83,6 +85,28 @@ public class ObfuscationContext {
 			newName += chars.charAt(current);
 		}
 		return newName;
+	}
+
+	public String getSuperMethodName(String superName, String origMethodName) {
+		ObfuscatedClass clazz = getClass(superName);
+		ClassNode cn = null;
+		if(clazz != null) {
+			cn = clazz.getNode();
+		} else {
+			return origMethodName;
+			//method haven't been changed because its not found in class list
+		}
+		
+		for(Entry<String, String> entry: clazz.getMethods().entrySet()) {
+			if(entry.getKey().equals(origMethodName)) {
+				System.err.println(entry.getKey() + " - " + entry.getValue() + " is returned for " + origMethodName);
+				return entry.getValue();
+			} else {
+				System.err.println(entry.getKey() + " - " + entry.getValue() + " isnt right for " + origMethodName);
+				
+			}
+		}
+		return cn.superName == null ? null : getSuperMethodName(cn.superName, origMethodName);
 	}
 	
 }
