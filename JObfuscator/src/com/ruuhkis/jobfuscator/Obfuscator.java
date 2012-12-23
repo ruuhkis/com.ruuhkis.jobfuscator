@@ -5,14 +5,14 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map.Entry;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
+import org.apache.log4j.Appender;
+import org.apache.log4j.BasicConfigurator;
+import org.apache.log4j.ConsoleAppender;
+import org.apache.log4j.Layout;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.tree.ClassNode;
@@ -39,7 +39,6 @@ public class Obfuscator {
 				
 				context.getClasses().add(new ObfuscatedClass(context, cn));
 				
-				System.out.println(className);
 				
 			}
 		}
@@ -94,6 +93,7 @@ public class Obfuscator {
 	
 
 	public static void main(String[] args) {
+		BasicConfigurator.configure();
 		if(args.length > 0) {
 			Obfuscator obfuscator = new Obfuscator();
 			try {

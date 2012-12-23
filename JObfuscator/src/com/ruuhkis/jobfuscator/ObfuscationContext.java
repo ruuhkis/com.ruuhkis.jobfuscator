@@ -1,13 +1,17 @@
 package com.ruuhkis.jobfuscator;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import org.objectweb.asm.Type;
+import org.apache.log4j.Level;
+import org.apache.log4j.Logger;
+import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.MethodNode;
 
 public class ObfuscationContext {
 
@@ -16,10 +20,14 @@ public class ObfuscationContext {
 
 	private String mainName;
 	
+	private static Logger logger = Logger.getLogger(ObfuscationContext.class);
+	
 	public ObfuscationContext(String mainName) {
 		this.mainName = mainName;
 		this.classes = new ArrayList<>();
 		this.classNames = new HashMap<String, String>();
+		logger.setLevel(Level.ALL);
+		
 	}
 	
 	public ObfuscatedClass getClass(String name) {
@@ -46,12 +54,12 @@ public class ObfuscationContext {
 			if(lastIndexOf > 0) {
 				packagePrefix = clazz.getNode().name.substring(0, lastIndexOf);
 			}
-//			System.out.println(packagePrefix);
 			String newClassName = getNewName(counter);
 			String oldName = clazz.getNode().name;
 			
-//			System.out.println("Renaming " + oldName + " to " + packagePrefix + newClassName);
 			classNames.put(oldName, packagePrefix + newClassName);
+			
+			logger.debug("Renaming " + clazz.getNode().name + " to " + packagePrefix + newClassName);
 			
 			clazz.getNode().name = packagePrefix + newClassName;
 			
@@ -61,7 +69,15 @@ public class ObfuscationContext {
 			String newSuperName = classNames.get(clazz.getNode().superName);
 			if(newSuperName != null) {
 				clazz.getNode().superName = newSuperName;
-//				System.out.println("Updated " + clazz.getNode().name + "'s supercalss to " + newSuperName);
+			}
+			
+			
+			for(int i = 0; i < clazz.getNode().interfaces.size(); i++) {
+				String interfaceName = (String) clazz.getNode().interfaces.get(i);
+				String newInterfaceName = classNames.get(interfaceName);
+				if(newInterfaceName != null) {
+					clazz.getNode().interfaces.set(i, newInterfaceName);
+				}
 			}
 		}
 	}
@@ -86,6 +102,34 @@ public class ObfuscationContext {
 		}
 		return newName;
 	}
+	
+	public String getInterfaceMethodName(String interfaceName, String origMethodName) {
+		ObfuscatedClass clazz = getClass(interfaceName);
+		ClassNode cn = null;
+		if(clazz != null) {
+			cn = clazz.getNode();
+		} else {
+			return null;
+		}
+		
+		for(Entry<String, String> entry: clazz.getMethods().entrySet()) {
+			if(entry.getKey().equals(origMethodName)) {
+				logger.debug(origMethodName + " have changed to " + entry.getValue() + " in " + interfaceName);
+				return entry.getValue();
+			} else {
+				
+			}
+		}
+		
+		for(MethodNode method: (List<MethodNode>)clazz.getNode().methods) {
+			if(origMethodName.equals(method.name)) {
+				logger.debug(origMethodName + " is still the same in " + interfaceName);
+				return method.name;
+			}
+		}
+		
+		return null;
+	}
 
 	public String getSuperMethodName(String superName, String origMethodName) {
 		ObfuscatedClass clazz = getClass(superName);
@@ -93,19 +137,43 @@ public class ObfuscationContext {
 		if(clazz != null) {
 			cn = clazz.getNode();
 		} else {
-			return origMethodName;
-			//method haven't been changed because its not found in class list
-		}
-		
-		for(Entry<String, String> entry: clazz.getMethods().entrySet()) {
-			if(entry.getKey().equals(origMethodName)) {
-				System.err.println(entry.getKey() + " - " + entry.getValue() + " is returned for " + origMethodName);
-				return entry.getValue();
-			} else {
-				System.err.println(entry.getKey() + " - " + entry.getValue() + " isnt right for " + origMethodName);
-				
+			try {
+				ClassReader cr = new ClassReader(superName);
+				cn = new ClassNode();
+				cr.accept(cn, 0);
+			} catch (IOException e) {
+				e.printStackTrace();
 			}
 		}
+		
+		if(clazz != null) {
+			for(Entry<String, String> entry: clazz.getMethods().entrySet()) {
+				if(entry.getKey().equals(origMethodName)) {
+					logger.debug(origMethodName + " have changed to " + entry.getValue() + " in " + superName);
+					return entry.getValue();
+				} else {
+					
+				}
+			}
+		}
+
+		
+		for(String interfaceName: (List<String>)cn.interfaces) {
+			String interfaceMethodName = getInterfaceMethodName(interfaceName, origMethodName);
+			if(interfaceMethodName != null) {
+				logger.debug("Found " + origMethodName + "s name change from interface " + interfaceName + " to " + interfaceMethodName);
+				return interfaceMethodName;
+			}
+		}
+
+		for(MethodNode method: (List<MethodNode>)cn.methods) {
+			if(method.name.equals(origMethodName)) {
+				logger.debug(origMethodName + " is still the same in " + superName);
+
+				return method.name;
+			}
+		}
+		
 		return cn.superName == null ? null : getSuperMethodName(cn.superName, origMethodName);
 	}
 	
