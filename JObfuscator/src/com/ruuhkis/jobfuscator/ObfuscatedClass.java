@@ -40,21 +40,26 @@ public class ObfuscatedClass {
 	}
 
 	public void generateNewNames() {
-		int counter = 0;
 		//generating new names for fields
 		for(FieldNode field: (List<FieldNode>)node.fields) {
+			String superFieldName = context.getSuperFieldName(node.superName, field.name);
+			
+			if(superFieldName != null) {
+				logger.debug(field.name + " already exists in upper level as " + superFieldName);
+				
+				continue;
+			}
+			
 			String originalName = field.name;
 			//TODO check for existance
-			String newName = ObfuscationContext.getNewName(counter);
+			String newName = ObfuscationContext.getNewName();
 			logger.debug("Generated new name to " + node.name + "'s field " + originalName + " and renaming it to " + newName);
 
 			fields.put(originalName, newName);
 			
 			field.name = newName;
 			
-			counter++;
 		}
-		counter = 0;
 		//generating new names for methods
 		for(MethodNode method: (List<MethodNode>)node.methods) {
 			String methodName = context.getSuperMethodName(node.superName, method.name);
@@ -75,7 +80,7 @@ public class ObfuscatedClass {
 			
 			String originalName = method.name;
 			
-			String newName = ObfuscationContext.getNewName(counter);
+			String newName = ObfuscationContext.getNewName();
 			
 			logger.debug("Generated new name to " + node.name + "'s method " + originalName + " and renaming it to " + newName);
 
@@ -84,8 +89,6 @@ public class ObfuscatedClass {
 			methods.put(originalName, newName);
 			
 			method.name = newName;
-			
-			counter++;
 		}
 		
 	}
@@ -166,6 +169,13 @@ public class ObfuscatedClass {
 					if(clazz == null) {
 					} else {
 						String newFieldName = clazz.getFields().get(fieldIns.name);
+						
+						String superFieldName = context.getSuperFieldName(clazz.getNode().superName, fieldIns.name);
+						
+						if(superFieldName != null) {
+							newFieldName = superFieldName;
+						}
+						
 						if(newFieldName != null) {
 							fieldIns.name = newFieldName;
 						} else {

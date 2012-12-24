@@ -11,6 +11,7 @@ import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.FieldNode;
 import org.objectweb.asm.tree.MethodNode;
 
 public class ObfuscationContext {
@@ -43,7 +44,6 @@ public class ObfuscationContext {
 	}
 	
 	public void generateClassNames() {
-		int counter = 100;
 		for(ObfuscatedClass clazz: classes) {
 			if(mainName.equals(clazz.getNode().name)) {
 				continue;
@@ -54,7 +54,7 @@ public class ObfuscationContext {
 			if(lastIndexOf > 0) {
 				packagePrefix = clazz.getNode().name.substring(0, lastIndexOf);
 			}
-			String newClassName = getNewName(counter);
+			String newClassName = getNewName();
 			String oldName = clazz.getNode().name;
 			
 			classNames.put(oldName, packagePrefix + newClassName);
@@ -63,7 +63,6 @@ public class ObfuscationContext {
 			
 			clazz.getNode().name = packagePrefix + newClassName;
 			
-			counter++;
 		}
 		for(ObfuscatedClass clazz: classes) {
 			String newSuperName = classNames.get(clazz.getNode().superName);
@@ -92,7 +91,9 @@ public class ObfuscationContext {
 
 	private static final String chars = "abcdefghijklmnopqrstuvwxyz";
 
-	public static String getNewName(int counter) {
+	public static int counter = 0;
+	
+	public static String getNewName() {
 		String newName = counter == 0 ? "a" : "";
 		int remainder = counter;
 		while(remainder != 0) {
@@ -100,6 +101,7 @@ public class ObfuscationContext {
 			remainder = remainder / chars.length();
 			newName += chars.charAt(current);
 		}
+		counter++;
 		return newName;
 	}
 	
@@ -130,6 +132,45 @@ public class ObfuscationContext {
 		
 		return null;
 	}
+	
+
+	
+	public String getSuperFieldName(String superName, String origFieldName) {
+		ObfuscatedClass clazz = getClass(superName);
+		ClassNode cn = null;
+		if(clazz != null) {
+			cn = clazz.getNode();
+		} else {
+			try {
+				ClassReader cr = new ClassReader(superName);
+				cn = new ClassNode();
+				cr.accept(cn, 0);
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+		
+		if(clazz != null) {
+			for(Entry<String, String> entry: clazz.getFields().entrySet()) {
+				if(entry.getKey().equals(origFieldName)) {
+					logger.debug("Field " + origFieldName + " have changed to " + entry.getValue() + " in " + superName);
+					return entry.getValue();
+				} else {
+					
+				}
+			}
+		}
+
+		for(FieldNode field: (List<FieldNode>)cn.fields) {
+			if(field.name.equals(origFieldName)) {
+				logger.debug("Field " + origFieldName + " is still the same in " + superName);
+
+				return field.name;
+			}
+		}
+		
+		return cn.superName == null ? null : getSuperFieldName(cn.superName, origFieldName);
+	}
 
 	public String getSuperMethodName(String superName, String origMethodName) {
 		ObfuscatedClass clazz = getClass(superName);
@@ -149,7 +190,7 @@ public class ObfuscationContext {
 		if(clazz != null) {
 			for(Entry<String, String> entry: clazz.getMethods().entrySet()) {
 				if(entry.getKey().equals(origMethodName)) {
-					logger.debug(origMethodName + " have changed to " + entry.getValue() + " in " + superName);
+					logger.debug("Method" + origMethodName + " have changed to " + entry.getValue() + " in " + superName);
 					return entry.getValue();
 				} else {
 					
